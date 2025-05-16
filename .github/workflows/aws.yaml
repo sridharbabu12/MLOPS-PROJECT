@@ -79,10 +79,12 @@ jobs:
           ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Stop any existing container with the same port
-          docker stop $(docker ps -q --filter publish=5000) || true
-          # Remove any existing container with the same port
-          docker rm $(docker ps -aq --filter publish=5000) || true
+          # Stop and remove existing container if it exists
+          if [ "$(docker ps -aq -f name=mlops-app)" ]; then
+            docker stop mlops-app
+            docker rm mlops-app
+          fi
+          
           # Run the new container
           docker run -d \
             --name mlops-app \
