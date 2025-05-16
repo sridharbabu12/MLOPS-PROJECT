@@ -64,7 +64,7 @@ jobs:
           mask-password: true
 
       - name: Run Docker container
-        run: |
-          docker run -d -p 8000:8000 ${{ needs.Continuous-Integration.outputs.image }}
+        run:
+          docker run -d -e AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" -e AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" -e AWS_DEFAULT_REGION="${{ secrets.AWS_DEFAULT_REGION }}" -e "IMAGE_TAG=${{ needs.Continuous-Integration.outputs.image }}" -p 5000:5000 "${{ steps.login-ecr.outputs.registry }}"/"${{ secrets.ECR_REPO }}":latest
           
             
