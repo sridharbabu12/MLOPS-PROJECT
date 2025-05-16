@@ -12,11 +12,11 @@ permissions:
 jobs:
   Continuous-Integration:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-      
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -32,23 +32,24 @@ jobs:
           mask-password: true
 
       - name: Build, tag, and push image to Amazon ECR
-        id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-      
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
   Continuous-Deployment:
     needs: Continuous-Integration
     runs-on: [self-hosted, linux, x64]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-     
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -63,35 +64,27 @@ jobs:
         with:
           mask-password: true
 
-      - name: Pull image from ECR
-        id: pull-image
+      - name: Pull latest image from ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
-          IMAGE_TAG: ${{ github.sha }}      
         run: |
-          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Run Docker container
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
-          IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Stop and remove existing container if it exists
           if [ "$(docker ps -aq -f name=mlops-app)" ]; then
             docker stop mlops-app
             docker rm mlops-app
           fi
-          
-          # Run the new container
+
           docker run -d \
             --name mlops-app \
             -p 5000:5000 \
             --restart unless-stopped \
             -e HOST=0.0.0.0 \
             -e PORT=5000 \
-            "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-
-          
+            "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
