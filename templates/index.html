@@ -13,7 +13,7 @@
 
     {% if not model_available %}
     <div class="alert alert-warning">
-        <p>⚠️ The prediction model is not currently available. Please ensure the model file is properly loaded.</p>
+        <p>⚠️ The prediction model is not currently available. Please try again later.</p>
     </div>
     {% endif %}
 
@@ -102,7 +102,13 @@
             </select>
         </div>
 
-        <button type="submit" {% if not model_available %}disabled{% endif %}>Predict Reservation Status</button>
+        <button type="submit" {% if not model_available %}disabled{% endif %}>
+            {% if not model_available %}
+            Model Unavailable
+            {% else %}
+            Predict Reservation Status
+            {% endif %}
+        </button>
     </form>
 
     {% if prediction is not none %}

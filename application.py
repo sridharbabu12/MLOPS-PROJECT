@@ -3,11 +3,16 @@ from pydantic import BaseModel, Field
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from typing import Dict
+from typing import Dict, Optional
 import joblib
 import numpy as np
 from config.paths_config import MODEL_OUTPUT_PATH
 import os
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Categorical mappings
 MARKET_SEGMENT_MAPPING = {
@@ -41,14 +46,37 @@ REVERSE_MEAL_PLAN = {v: k for k, v in MEAL_PLAN_MAPPING.items()}
 REVERSE_ROOM_TYPE = {v: k for k, v in ROOM_TYPE_MAPPING.items()}
 
 class PredictionResponse(BaseModel):
-    prediction: float = Field(..., description="Predicted booking status")
+    prediction: Optional[float] = Field(None, description="Predicted booking status")
     message: str = Field(..., description="Prediction message")
 
 app = FastAPI(title="Hotel Booking Prediction API", description="Predicting hotel booking status")
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Global variable to store the loaded model
+model = None
 
-templates = Jinja2Templates(directory="templates")  
+def load_model():
+    global model
+    try:
+        if os.path.exists(MODEL_OUTPUT_PATH):
+            model = joblib.load(MODEL_OUTPUT_PATH)
+            logger.info(f"Model loaded successfully from {MODEL_OUTPUT_PATH}")
+            return True
+        else:
+            logger.error(f"Model file not found at {MODEL_OUTPUT_PATH}")
+            return False
+    except Exception as e:
+        logger.error(f"Error loading model: {str(e)}")
+        return False
+
+@app.on_event("startup")
+async def startup_event():
+    global model
+    model_loaded = load_model()
+    if not model_loaded:
+        logger.warning("Model could not be loaded during startup")
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
@@ -56,11 +84,10 @@ async def root(request: Request):
         "index.html", 
         {
             "request": request,
-            "model_available": True,
+            "model_available": model is not None,
             "market_segments": MARKET_SEGMENT_MAPPING.keys(),
             "meal_plans": MEAL_PLAN_MAPPING.keys(),
             "room_types": ROOM_TYPE_MAPPING.keys()
-            
         }
     )
 
@@ -77,10 +104,13 @@ async def predict(
     type_of_meal_plan: str = Form(...),
     room_type_reserved: str = Form(...)
 ):
-    try:
-        # Load the model
-        loaded_model = joblib.load(MODEL_OUTPUT_PATH)
+    if model is None:
+        return PredictionResponse(
+            prediction=None,
+            message="Model is not available. Please ensure the model file is properly loaded."
+        )
 
+    try:
         # Convert categorical features using mappings
         market_segment_int = MARKET_SEGMENT_MAPPING[market_segment_type]
         meal_plan_int = MEAL_PLAN_MAPPING[type_of_meal_plan]
@@ -101,33 +131,27 @@ async def predict(
         ]])
         
         # Make prediction
-        prediction = loaded_model.predict(prediction_input)[0]
+        prediction = model.predict(prediction_input)[0]
         message = "The booking is likely to be confirmed." if prediction == 1 else "The booking is likely to be cancelled."
         return PredictionResponse(prediction=float(prediction), message=message)
     
     except KeyError as ke:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "prediction": None,
-                "message": f"Invalid categorical value: {str(ke)}"
-            }
+        logger.error(f"Invalid categorical value: {str(ke)}")
+        return PredictionResponse(
+            prediction=None,
+            message=f"Invalid categorical value: {str(ke)}"
         )
     except ValueError as ve:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "prediction": None,
-                "message": f"Invalid input value: {str(ve)}"
-            }
+        logger.error(f"Invalid input value: {str(ve)}")
+        return PredictionResponse(
+            prediction=None,
+            message=f"Invalid input value: {str(ve)}"
         )
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={
-                "prediction": None,
-                "message": f"An error occurred: {str(e)}"
-            }
+        logger.error(f"Prediction error: {str(e)}")
+        return PredictionResponse(
+            prediction=None,
+            message=f"An error occurred during prediction: {str(e)}"
         )
         
         
