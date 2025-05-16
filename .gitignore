@@ -4,3 +4,4 @@
 /config/.env
 /mlruns
 /MLOPS_PROJECT_1.egg-info
+/s3

@@ -1,0 +1,27 @@
+stages:
+  data_ingestion:
+    cmd: python src/data_ingestion.py
+    deps:
+      - src/data_ingestion.py
+    outs:
+      - artifacts/raw/
+      
+  data_processing:
+    cmd: python src/data_processing.py
+    deps:
+      - src/data_processing.py
+      - artifacts/raw/train_csv
+      - artifacts/raw/test_csv
+    outs:
+      - artifacts/processed/
+      
+  model_training:
+    cmd: python src/model_training.py
+    deps:
+      - src/model_training.py
+      - artifacts/processed/processed_test.csv
+      - artifacts/processed/processed_train.csv
+
+    outs:
+      - artifacts/models/
+  

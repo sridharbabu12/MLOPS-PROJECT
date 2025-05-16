@@ -1,0 +1,8 @@
+artifacts
+config
+logs
+MLOPS_PROJECT_1.egg-info
+mlruns
+notebook
+venv
+.gitignore
