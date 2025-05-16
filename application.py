@@ -52,12 +52,11 @@ templates = Jinja2Templates(directory="templates")
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
-    model_available = os.path.exists(MODEL_OUTPUT_PATH)
     return templates.TemplateResponse(
         "index.html", 
         {
             "request": request,
-            "model_available": model_available,
+            "model_available": True,
             "market_segments": MARKET_SEGMENT_MAPPING.keys(),
             "meal_plans": MEAL_PLAN_MAPPING.keys(),
             "room_types": ROOM_TYPE_MAPPING.keys()
